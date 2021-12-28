@@ -27,11 +27,13 @@ type StatsWorker struct {
 }
 
 type Stats struct {
-	next         *livekit.AnalyticsStat
-	totalPackets uint32
-	prevPackets  uint32
-	totalBytes   uint64
-	prevBytes    uint64
+	next             *livekit.AnalyticsStat
+	totalPackets     uint32
+	prevPackets      uint32
+	totalBytes       uint64
+	prevBytes        uint64
+	totalPacketsLost uint64
+	prevPacketsLost  uint64
 }
 
 func newStatsWorker(ctx context.Context, t TelemetryReporter, roomID, roomName, participantID string) *StatsWorker {
@@ -100,6 +102,7 @@ func (s *StatsWorker) OnRTCP(trackID string, direction livekit.StreamType, stats
 	} else {
 		ds = s.getOrCreateIncomingStatsIfEmpty(trackID)
 	}
+	ds.totalPacketsLost = stats.PacketLost
 
 	if stats.Delay > ds.next.Delay {
 		ds.next.Delay = stats.Delay
@@ -107,7 +110,6 @@ func (s *StatsWorker) OnRTCP(trackID string, direction livekit.StreamType, stats
 	if stats.Jitter > ds.next.Jitter {
 		ds.next.Jitter = stats.Jitter
 	}
-	ds.next.PacketLost += stats.PacketLost
 	ds.next.NackCount += stats.NackCount
 	ds.next.PliCount += stats.PliCount
 	ds.next.FirCount += stats.FirCount
@@ -188,9 +190,11 @@ func (s *StatsWorker) update(stats *Stats, ts *timestamppb.Timestamp) *livekit.A
 	next.TimeStamp = ts
 	next.TotalPackets = uint64(stats.totalPackets - stats.prevPackets)
 	next.TotalBytes = stats.totalBytes - stats.prevBytes
+	next.PacketLost = stats.totalPacketsLost - stats.prevPacketsLost
 
 	stats.prevPackets = stats.totalPackets
 	stats.prevBytes = stats.totalBytes
+	stats.prevPacketsLost = stats.totalPacketsLost
 
 	return next
 }
